@@ -1,0 +1,279 @@
+"""
+Credit Card Distribution Analysis Pipeline
+
+This script implements an end-to-end ETL pipeline for analyzing credit card distribution patterns.
+It follows OOP principles and includes data extraction from MySQL, transformation, and loading to S3.
+"""
+
+# Standard library imports
+import logging
+from abc import ABC, abstractmethod
+
+# Third-party imports
+import pandas as pd
+from sqlalchemy import create_engine
+import boto3
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class DataProcessor(ABC):
+    """
+    Abstract Base Class defining the interface for data processing pipelines.
+    
+    Methods:
+        extract_data(): Abstract method for data extraction
+        transform_data(): Abstract method for data transformation
+        load_data(): Abstract method for data loading
+    """
+    
+    @abstractmethod
+    def extract_data(self) -> bool:
+        """Extract data from source system"""
+        pass
+        
+    @abstractmethod
+    def transform_data(self) -> bool:
+        """Transform and clean extracted data"""
+        pass
+        
+    @abstractmethod
+    def load_data(self) -> bool:
+        """Load processed data to destination"""
+        pass
+
+
+class CreditCardAnalysis(DataProcessor):
+    """
+    Concrete implementation of credit card data analysis pipeline.
+    
+    Attributes:
+        db_config (dict): Database connection parameters
+        s3_config (dict): AWS S3 configuration
+        raw_data (pd.DataFrame): Extracted raw data
+        processed_data (pd.DataFrame): Transformed analysis data
+    """
+    
+    def __init__(self, db_config: dict, s3_config: dict):
+        """
+        Initialize the analyzer with configurations.
+        
+        Args:
+            db_config: Dictionary containing MySQL connection parameters
+                Expected keys: host, port, user, password, database
+            s3_config: Dictionary containing AWS S3 credentials
+                Expected keys: access_key, secret_key, bucket_name
+        """
+        self.db_config = db_config
+        self.s3_config = s3_config
+        self.raw_data = None
+        self.processed_data = None
+        
+    def extract_data(self) -> bool:
+        """
+        Extract credit card data from MySQL database.
+        
+        Returns:
+            bool: True if extraction succeeded, False otherwise
+            
+        Raises:
+            Logs exceptions but doesn't raise to allow pipeline continuation
+        """
+        try:
+            logger.info("Starting data extraction from MySQL")
+            
+            # Create database connection string
+            connection_string = (
+                f"mysql+pymysql://{self.db_config['user']}:{self.db_config['password']}@"
+                f"{self.db_config['host']}:{self.db_config['port']}/"
+                f"{self.db_config['database']}"
+            )
+            
+            # SQL query to fetch credit card data
+            query = """
+                SELECT 
+                    card_id, 
+                    issue_date, 
+                    credit_limit, 
+                    area_code, 
+                    sales_volume, 
+                    customer_id, 
+                    activation_status 
+                FROM credit_cards
+                WHERE issue_date > DATE_SUB(NOW(), INTERVAL 1 YEAR)
+            """
+            
+            # Execute query and load results into DataFrame
+            engine = create_engine(connection_string)
+            self.raw_data = pd.read_sql(query, engine)
+            
+            logger.info(f"Successfully extracted {len(self.raw_data)} records")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Data extraction failed: {str(e)}")
+            return False
+    
+    def transform_data(self) -> bool:
+        """
+        Clean and transform raw credit card data.
+        
+        Performs:
+        1. Data cleaning (handle missing values, correct data types)
+        2. Feature engineering (calculate metrics)
+        3. Aggregation by geographic area
+        
+        Returns:
+            bool: True if transformation succeeded, False otherwise
+        """
+        try:
+            logger.info("Starting data transformation")
+            
+            if self.raw_data is None:
+                raise ValueError("No data available for transformation")
+                
+            # Data Cleaning ---------------------------------------------------
+            
+            # Remove records with missing critical values
+            initial_count = len(self.raw_data)
+            self.raw_data.dropna(
+                subset=['area_code', 'activation_status', 'sales_volume'],
+                inplace=True
+            )
+            
+            # Convert date field to proper datetime type
+            self.raw_data['issue_date'] = pd.to_datetime(self.raw_data['issue_date'])
+            
+            # Feature Engineering ----------------------------------------------
+            
+            # Calculate activation rate per area
+            self.raw_data['activation_rate'] = (
+                self.raw_data['activation_status'].astype(int) / 
+                self.raw_data.groupby('area_code')['activation_status'].transform('count')
+            )
+            
+            # Calculate credit limit utilization
+            self.raw_data['limit_utilization'] = (
+                self.raw_data['sales_volume'] / self.raw_data['credit_limit']
+            )
+            
+            # Data Aggregation ------------------------------------------------
+            
+            # Group by area and calculate metrics
+            agg_config = {
+                'card_id': 'count',                   # Number of cards
+                'credit_limit': 'mean',               # Avg credit limit
+                'sales_volume': ['sum', 'mean'],      # Total and avg sales
+                'activation_rate': 'mean',           # Avg activation rate
+                'limit_utilization': 'mean'          # Avg credit utilization
+            }
+            
+            self.processed_data = (
+                self.raw_data
+                .groupby('area_code')
+                .agg(agg_config)
+                .reset_index()
+            )
+            
+            # Flatten multi-index columns
+            self.processed_data.columns = [
+                'area_code',
+                'card_count',
+                'avg_credit_limit',
+                'total_sales',
+                'avg_sales',
+                'activation_rate',
+                'avg_utilization'
+            ]
+            
+            logger.info(
+                f"Transformation complete. Cleaned {initial_count - len(self.raw_data)} "
+                f"records. Final dataset has {len(self.processed_data)} areas."
+            )
+            return True
+            
+        except Exception as e:
+            logger.error(f"Data transformation failed: {str(e)}")
+            return False
+    
+    def load_data(self) -> bool:
+        """
+        Export processed data to S3 bucket as CSV.
+        
+        Returns:
+            bool: True if export succeeded, False otherwise
+        """
+        try:
+            logger.info("Starting data export to S3")
+            
+            if self.processed_data is None:
+                raise ValueError("No processed data available for export")
+                
+            # Create S3 client
+            s3 = boto3.client(
+                's3',
+                aws_access_key_id=self.s3_config['access_key'],
+                aws_secret_access_key=self.s3_config['secret_key']
+            )
+            
+            # Convert DataFrame to CSV string
+            csv_buffer = self.processed_data.to_csv(index=False)
+            
+            # Upload to S3
+            s3.put_object(
+                Bucket=self.s3_config['bucket_name'],
+                Key=f"credit_card_analysis/{pd.Timestamp.now().strftime('%Y%m%d')}_results.csv",
+                Body=csv_buffer
+            )
+            
+            logger.info("Data successfully exported to S3")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Data export failed: {str(e)}")
+            return False
+    
+    def run_pipeline(self) -> dict:
+        """
+        Execute complete ETL pipeline.
+        
+        Returns:
+            dict: Dictionary with success status of each stage
+        """
+        logger.info("Starting credit card analysis pipeline")
+        
+        results = {
+            'extraction': self.extract_data(),
+            'transformation': self.transform_data(),
+            'loading': self.load_data()
+        }
+        
+        logger.info(f"Pipeline execution completed. Results: {results}")
+        return results
+
+
+if __name__ == "__main__":
+    # Configuration parameters (should be loaded from environment in production)
+    db_config = {
+        'host': 'mysql-host.example.com',
+        'port': 3306,
+        'user': 'analytics_user',
+        'password': 'secure_password',
+        'database': 'credit_card_db'
+    }
+
+    s3_config = {
+        'access_key': 'AKIAXXXXXXXXXXXXXXXX',
+        'secret_key': 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        'bucket_name': 'company-data-lake'
+    }
+
+    # Execute the pipeline
+    analyzer = CreditCardAnalysis(db_config, s3_config)
+    pipeline_results = analyzer.run_pipeline()
+    
+    # Print final results
+    print("\nPipeline Execution Summary:")
+    for stage, success in pipeline_results.items():
+        print(f"{stage.capitalize()}: {'Success' if success else 'Failed'}")
