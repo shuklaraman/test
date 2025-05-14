@@ -1,0 +1,42 @@
+Category	Checklist	Weight	Score (1-5)	Test Evidence
+Modularity	Is the code organized into small, focused functions or classes?		5	Uses OOP principles, clear separation of concerns with distinct methods
+	Does each function or class have a single responsibility?		5	DataProcessor defines ETL structure, CreditCardAnalysis implements clear separation
+	Are related functionalities grouped logically into modules or packages?		4	Could benefit from further modularization (e.g., separate transformation logic)
+	Is the component/module self-contained?		5	Can function independently; no strong external dependencies
+	Can it function independently of the system?		5	Methods are encapsulated within the class, pipeline execution controlled via run_pipeline()
+				
+Loose Coupling	Does it minimize dependencies on other components?		4	Database and S3 interactions use standard interfaces but could benefit from abstraction
+	Are external interfaces used instead of direct object references?		4	create_engine and boto3.client() use abstraction but could be wrapped further
+				
+High Cohesion	Are the functionalities within the component closely related?		5	ETL methods are logically grouped within CreditCardAnalysis
+	Is it easy to understand and manage as a single unit?		5	Well-structured, clear docstrings and logging for visibility
+				
+Parameterization/ Configurations	Are values hardcoded, or can they be passed as parameters?	4	4	db_config and s3_config passed dynamically, but AWS keys should be sourced from env variables
+	Are default values provided for optional parameters?		3	Credentials are required; no defaults for optional settings like batch size
+	Is the use of global variables avoided?		5	No global variables used
+				
+Generalization	Is the code written to work with a broad set of inputs or use cases?		4	Uses dynamic SQL query and flexible data transformations
+	Are data types and structures flexible (e.g., accepting iterable instead of a specific list)?		3	Could support different formats (e.g., JSON input/output)
+	Are functions written to be data-agnostic when appropriate?		4	Transformation logic designed for adaptability
+				
+Separation of Concerns	Is business logic separated from I/O operations (e.g., reading files, printing)?		5	Extraction, transformation, and loading are separate methods
+	Is configuration separated from core logic?		4	Config stored separately but could use environment variables
+				
+Versioning and Compatibility	Is there version control for the reusable asset?		3	No explicit versioning; should use Git or module versioning
+	Are backward compatibility concerns addressed?		4	Uses standard Python libraries, ensuring compatibility
+				
+Documentation and Naming	Are function and variable names descriptive and meaningful?	5	5	Good naming conventions (extract_data(), transform_data())
+	Are docstrings provided to explain purpose, parameters, and return values?		5	Comprehensive docstrings provided
+	Are usage examples or comments included where needed?		4	Inline comments exist, but usage examples could be improved
+				
+Standard Interfaces	Are standard APIs or data formats used (e.g., REST, JSON, XML)?		3	S3 integration used, but additional API support (e.g., REST endpoint) would help
+	Does it follow language or framework-specific best practices?		5	Uses Pandas, SQLAlchemy, boto3 according to best practices
+				
+Error Handling	Are errors and exceptions handled gracefully and not just passed or ignored?		4	Exceptions logged, but could add recovery mechanisms
+	Are informative messages or exceptions provided to aid debugging?		5	Logs failures with useful messages
+				
+Dependencies	Is the code loosely coupled (minimal dependencies on external code)?		4	Only essential libraries used; abstraction could improve portability
+	Are third-party libraries abstracted when necessary to make switching easier?		4	SQLAlchemy and boto3 used but could be wrapped further
+				
+Testability	Are there unit tests or examples for individual functions?		3	No explicit unit tests; should add pytest or unittest support
+	Is the code structure compatible with automated testing frameworks (like unittest or pytest)?		3	Can be tested with mocks, but dedicated unit tests missing
