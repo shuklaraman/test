@@ -1,0 +1,36 @@
+| **Category** | **Checklist** | **Weight** | **Score (1-5)** | **Test Evidence** |
+|--------------|--------------|---------|-----------------|-----------------|
+| **Modularity** | Is the code organized into small, focused functions or classes? | 5 | 5 | Clear separation into ETLProcessor (abstract) and SalesDataPipeline (concrete) classes. |
+| | Does each function or class have a single responsibility? | 5 | 5 | Each method (extract, transform, load) has a clear, singular purpose. |
+| | Are related functionalities grouped logically into modules or packages? | 5 | 5 | Data extraction, transformation, and loading are clearly separated. |
+| | Is the component/module self-contained? | 5 | 5 | Classes are fully self-contained and reusable across different pipelines. |
+| | Can it function independently of the system? | 5 | 5 | Can run without external dependencies beyond the required libraries. |
+| **Loose Coupling** | Does it minimize dependencies on other components? | 4 | 4 | S3 and database interfaces are encapsulated but directly referenced. |
+| | Are external interfaces used instead of direct object references? | 4 | 4 | Uses boto3 and SQLAlchemy, but could benefit from further abstraction. |
+| **High Cohesion** | Are the functionalities within the component closely related? | 5 | 5 | The methods in each class are tightly related to the ETL lifecycle. |
+| | Is it easy to understand and manage as a single unit? | 5 | 5 | Clear separation and logical grouping of methods. |
+| **Parameterization/Configurations** | Are values hardcoded, or can they be passed as parameters? | 4 | 4 | Environment variables and dynamic arguments are used, but some values are defaulted. |
+| | Are default values provided for optional parameters? | 4 | 4 | Defaults for database and S3 credentials are managed via environment variables. |
+| | Is the use of global variables avoided? | 5 | 5 | No global variables present, all parameters are encapsulated. |
+| **Generalization** | Is the code written to work with a broad set of inputs or use cases? | 4 | 4 | Designed for sales data but can be adapted for other data types with minor changes. |
+| | Are data types and structures flexible (e.g., accepting iterable instead of a specific list)? | 4 | 4 | Primarily uses Pandas DataFrames, which are flexible but not fully generic. |
+| | Are functions written to be data-agnostic when appropriate? | 4 | 4 | Methods are tailored to sales data but could be abstracted further. |
+| **Separation of Concerns** | Is business logic separated from I/O operations (e.g., reading files, printing)? | 5 | 5 | Data extraction, transformation, and loading are distinctly separated. |
+| | Is configuration separated from core logic? | 4 | 4 | Configuration is environment-driven but could benefit from a config file. |
+| **Versioning and Compatibility** | Is there version control for the reusable asset? | 3 | 3 | No explicit versioning, relies on file structure and Git. |
+| | Are backward compatibility concerns addressed? | 4 | 4 | Uses standard Python libraries, generally backward compatible. |
+| **Documentation and Naming** | Are function and variable names descriptive and meaningful? | 5 | 5 | Clear, meaningful method and variable names. |
+| | Are docstrings provided to explain purpose, parameters, and return values? | 5 | 5 | Comprehensive docstrings provided throughout. |
+| | Are usage examples or comments included where needed? | 4 | 4 | Basic inline comments provided, but lacks comprehensive usage examples. |
+| **Standard Interfaces** | Are standard APIs or data formats used (e.g., REST, JSON, XML)? | 4 | 4 | Uses SQLAlchemy for DB access and CSV for S3, but lacks API support. |
+| | Does it follow language or framework-specific best practices? | 5 | 5 | Follows PEP8 and standard Python conventions. |
+| **Error Handling** | Are errors and exceptions handled gracefully and not just passed or ignored? | 4 | 4 | Logs exceptions but lacks detailed recovery mechanisms. |
+| | Are informative messages or exceptions provided to aid debugging? | 5 | 5 | Logs detailed error messages for troubleshooting. |
+| **Dependencies** | Is the code loosely coupled (minimal dependencies on external code)? | 4 | 4 | Uses a minimal set of libraries, but direct dependencies are present. |
+| | Are third-party libraries abstracted when necessary to make switching easier? | 4 | 4 | Directly uses boto3 and SQLAlchemy without abstraction. |
+| **Testability** | Are there unit tests or examples for individual functions? | 3 | 3 | No explicit unit tests, though methods are structured for testability. |
+| | Is the code structure compatible with automated testing frameworks (like unittest or pytest)? | 4 | 4 | Compatible, but lacks predefined test cases. |
+| **Adherence to Standards** | Is PEP8 or a consistent style guide followed? | 5 | 5 | Follows PEP8, clear structure and naming conventions. |
+| | Are type hints used where appropriate to clarify function signatures? | 3 | 3 | Limited type hints, only for constructor parameters. |
+| **Reusability in Other Contexts** | Can the code be used in scripts, web apps, or other systems without modification? | 4 | 4 | Self-contained, but would benefit from more modular design for broader reuse. |
+| | Is there a clear entry point (e.g., function or class) for reuse? | 5 | 5 | run_pipeline() provides a straightforward entry point. |
