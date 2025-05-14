@@ -1,0 +1,106 @@
+import os
+import logging
+import boto3
+import pandas as pd
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional
+from sqlalchemy import create_engine
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+class ETLProcessor(ABC):
+    """Abstract Base Class defining the structure of an ETL pipeline."""
+
+    @abstractmethod
+    def extract(self, **kwargs) -> pd.DataFrame:
+        pass
+
+    @abstractmethod
+    def transform(self, data: pd.DataFrame) -> pd.DataFrame:
+        pass
+
+    @abstractmethod
+    def load(self, data: pd.DataFrame, **kwargs) -> None:
+        pass
+
+
+class SalesDataPipeline(ETLProcessor):
+    """Concrete ETL pipeline for sales data analysis."""
+
+    def __init__(self, db_config: Dict[str, Any], s3_config: Dict[str, Any]):
+        self.db_config = db_config
+        self.s3_config = s3_config
+
+    def extract(self, query: str = None) -> pd.DataFrame:
+        try:
+            connection_string = f"mysql+pymysql://{self.db_config['user']}:{self.db_config['password']}@{self.db_config['host']}:{self.db_config['port']}/{self.db_config['database']}"
+            engine = create_engine(connection_string)
+            query = query or "SELECT * FROM sales"
+            data = pd.read_sql(query, engine)
+            logger.info(f"Extracted {len(data)} records from the database.")
+            return data
+        except Exception as e:
+            logger.error(f"Error during data extraction: {e}")
+            return pd.DataFrame()
+
+    def transform(self, data: pd.DataFrame) -> pd.DataFrame:
+        try:
+            data.dropna(inplace=True)
+            data['order_date'] = pd.to_datetime(data['order_date'])
+            data['order_value'] = data['quantity'] * data['unit_price']
+            summary = data.groupby('region').agg({
+                'order_value': ['sum', 'mean'],
+                'order_id': 'count'
+            }).reset_index()
+            summary.columns = ['region', 'total_sales', 'average_order_value', 'order_count']
+            logger.info("Data transformed successfully.")
+            return summary
+        except Exception as e:
+            logger.error(f"Error during data transformation: {e}")
+            return pd.DataFrame()
+
+    def load(self, data: pd.DataFrame, file_name: str = None) -> None:
+        try:
+            s3 = boto3.client(
+                's3',
+                aws_access_key_id=self.s3_config['access_key'],
+                aws_secret_access_key=self.s3_config['secret_key']
+            )
+            file_name = file_name or f"sales_summary_{pd.Timestamp.now().strftime('%Y%m%d')}.csv"
+            csv_buffer = data.to_csv(index=False)
+            s3.put_object(Bucket=self.s3_config['bucket_name'], Key=file_name, Body=csv_buffer)
+            logger.info(f"Data successfully loaded to S3 as {file_name}.")
+        except Exception as e:
+            logger.error(f"Error during data loading: {e}")
+
+    def run_pipeline(self, query: Optional[str] = None, file_name: Optional[str] = None) -> None:
+        logger.info("Starting ETL pipeline...")
+        data = self.extract(query=query)
+        if not data.empty:
+            transformed_data = self.transform(data)
+            self.load(transformed_data, file_name)
+        logger.info("ETL pipeline completed.")
+
+
+def main():
+    db_config = {
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'port': int(os.getenv('DB_PORT', 3306)),
+        'user': os.getenv('DB_USER', 'root'),
+        'password': os.getenv('DB_PASSWORD', 'password'),
+        'database': os.getenv('DB_NAME', 'sales_db')
+    }
+    s3_config = {
+        'access_key': os.getenv('AWS_ACCESS_KEY_ID', 'AKIA...'),
+        'secret_key': os.getenv('AWS_SECRET_ACCESS_KEY', '...'),
+        'bucket_name': os.getenv('AWS_BUCKET_NAME', 'sales-bucket')
+    }
+    pipeline = SalesDataPipeline(db_config, s3_config)
+    pipeline.run_pipeline()
+
+
+if __name__ == "__main__":
+    main()
