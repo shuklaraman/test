@@ -40,3 +40,13 @@ Dependencies	Is the code loosely coupled (minimal dependencies on external code)
 				
 Testability	Are there unit tests or examples for individual functions?		3	No explicit unit tests; should add pytest or unittest support
 	Is the code structure compatible with automated testing frameworks (like unittest or pytest)?		3	Can be tested with mocks, but dedicated unit tests missing
+
+
+
+
+
+Adherence to Standards	Is PEP8 or a consistent style guide followed?		5	Follows PEP8, clear structure and naming conventions
+	Are type hints used where appropriate to clarify function signatures?		3	No type hints currently used, could be added
+				
+Reusability in Other Contexts	Can the code be used in scripts, web apps, or other systems without modification?		4	Modular but could benefit from a REST API wrapper
+	Is there a clear entry point (e.g., function or class) for reuse?		5	run_pipeline() serves as the entry point
